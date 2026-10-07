@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Latająca Ryba – nowe hasło</title>
+<style>
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:#0a0a1a; color:#fff; font-family:-apple-system,Segoe UI,Roboto,sans-serif; }
+  .card { width:100%; max-width:380px; margin:16px; background:#141428; border:1px solid #2a2a4a; border-radius:20px; padding:28px; box-sizing:border-box; }
+  h1 { font-size:22px; margin:0 0 6px; text-align:center; }
+  .sub { color:#4a9eff; font-size:14px; text-align:center; margin-bottom:22px; }
+  input { width:100%; box-sizing:border-box; padding:14px; margin-bottom:14px; background:#1e1e3a; border:1px solid #2a2a4a; border-radius:12px; color:#fff; font-size:16px; }
+  button { width:100%; padding:15px; background:#4a9eff; color:#fff; border:0; border-radius:12px; font-size:16px; font-weight:bold; cursor:pointer; }
+  button:disabled { opacity:.6; }
+  .msg { text-align:center; font-size:15px; line-height:1.5; }
+  .err { color:#ff6b6b; font-size:14px; margin-bottom:12px; text-align:center; min-height:18px; }
+  .ok { color:#6bd36b; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🎣 Latająca Ryba</h1>
+  <div class="sub">Łów. Rejestruj. Rywalizuj.</div>
+
+  <div id="loading" class="msg">Sprawdzam link…</div>
+
+  <form id="form" class="hidden">
+    <input id="p1" type="password" placeholder="Nowe hasło (min. 6 znaków)" autocomplete="new-password">
+    <input id="p2" type="password" placeholder="Powtórz nowe hasło" autocomplete="new-password">
+    <div id="err" class="err"></div>
+    <button id="btn" type="submit">Ustaw nowe hasło</button>
+  </form>
+
+  <div id="done" class="msg ok hidden">✅ Hasło zostało zmienione.<br>Wróć do aplikacji i zaloguj się nowym hasłem.</div>
+  <div id="confirmed" class="msg ok hidden">✅ Adres e-mail potwierdzony.<br>Wróć do aplikacji i zaloguj się.</div>
+  <div id="bad" class="msg hidden" style="color:#ff6b6b">Link jest nieprawidłowy lub wygasł.<br>Wróć do aplikacji i poproś o nowy link do resetu hasła.</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = 'https://neiyrttqxmbiguzewkdd.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_b2h_t_F1FfsEVN5I3Vw7Fg_P3jODDUY';
+
+  const $ = id => document.getElementById(id);
+  const show = id => { ['loading','form','done','confirmed','bad'].forEach(x => $(x).classList.add('hidden')); $(id).classList.remove('hidden'); };
+
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const isError = hash.get('error') || hash.get('error_code');
+  const type = hash.get('type');
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  if (isError) {
+    show('bad');
+  } else if (type === 'recovery') {
+    sb.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') show('form');
+    });
+    setTimeout(async () => {
+      const { data } = await sb.auth.getSession();
+      if (data.session) show('form'); else show('bad');
+    }, 2500);
+  } else if (type === 'signup' || type === 'email_change' || type === 'magiclink') {
+    show('confirmed');
+  } else {
+    show('bad');
+  }
+
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const p1 = $('p1').value, p2 = $('p2').value;
+    $('err').textContent = '';
+    if (p1.length < 6) { $('err').textContent = 'Hasło musi mieć co najmniej 6 znaków.'; return; }
+    if (p1 !== p2) { $('err').textContent = 'Hasła nie są takie same.'; return; }
+    $('btn').disabled = true;
+    const { error } = await sb.auth.updateUser({ password: p1 });
+    if (error) { $('err').textContent = 'Błąd: ' + error.message; $('btn').disabled = false; return; }
+    await sb.auth.signOut();
+    show('done');
+  });
+</script>
+</body>
+</html>
